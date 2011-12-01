@@ -256,6 +256,12 @@ def euclideanHeuristic(position, problem, info={}):
 #####################################################
 # This portion is incomplete.  Time to write code!  #
 #####################################################
+def removeTuple(parent, remove):
+	returnvalue = parent;
+	if (remove in parent):
+		idx = parent.index(remove)
+		returnvalue = (removeTuple((parent[0:idx] + parent[(idx+1):]),remove))
+	return returnvalue
 
 class CornersProblem(search.SearchProblem):
   """
@@ -280,14 +286,20 @@ class CornersProblem(search.SearchProblem):
     "*** YOUR CODE HERE ***"
     
   def getStartState(self):
-    "Returns the start state (in your state space, not the full Pacman state space)"
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+	"Returns the start state (in your state space, not the full Pacman state space)"
+	"*** YOUR CODE HERE ***"
+	"What if we returned the position and an array of remaining _available_ food?"
+	s = (self.startingPosition, self.corners)
+	return s
+
     
   def isGoalState(self, state):
-    "Returns whether this search state is a goal state of the problem"
-    "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+	"Returns whether this search state is a goal state of the problem"
+	"*** YOUR CODE HERE ***"
+	goalstate = True
+	for corner in self.corners:
+		goalstate = goalstate and (len(state[1]) == 0)
+	return goalstate
        
   def getSuccessors(self, state):
     """
@@ -300,7 +312,6 @@ class CornersProblem(search.SearchProblem):
      required to get there, and 'stepCost' is the incremental 
      cost of expanding to that successor
     """
-    
     successors = []
     for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
       # Add a successor state to the successor list if the action is legal
@@ -309,9 +320,15 @@ class CornersProblem(search.SearchProblem):
       #   dx, dy = Actions.directionToVector(action)
       #   nextx, nexty = int(x + dx), int(y + dy)
       #   hitsWall = self.walls[nextx][nexty]
-      
       "*** YOUR CODE HERE ***"
-      
+      x,y = state[0]
+      dx, dy = Actions.directionToVector(action)
+      nextx, nexty = int(x + dx), int(y + dy)
+      hitsWall = self.walls[nextx][nexty]
+      if (not hitsWall):
+        newcorners = removeTuple(state[1], (nextx,nexty))
+        nextstate = ((nextx, nexty), newcorners)
+        successors.append((nextstate, action, 1));
     self._expanded += 1
     return successors
 
@@ -328,6 +345,21 @@ class CornersProblem(search.SearchProblem):
       if self.walls[x][y]: return 999999
     return len(actions)
 
+def distance(a,b):
+	return(abs(a[0] - b[0]) + abs(a[1] - b[1]))
+
+def cornerHeuristicHelper(curpos, foods):
+	retVal = 0
+	if (len(foods) > 0):
+		shortest = -1
+		for i in foods:
+			z = distance(curpos, i)
+			if ((shortest < 0) or (z < shortest)):
+				shortest = z
+				shortestpos = i
+		retVal = shortest + cornerHeuristicHelper(shortestpos, removeTuple(foods,shortestpos))
+		
+	return retVal
 
 def cornersHeuristic(state, problem):
   """
@@ -346,7 +378,12 @@ def cornersHeuristic(state, problem):
   walls = problem.walls # These are the walls of the maze, as a Grid (game.py)
   
   "*** YOUR CODE HERE ***"
-  return 0 # Default to trivial solution
+  # So. My idea is basically to find the shortest path to _a_ piece of food
+  # then, to the next then to the next, etc.
+  # If this were a _lot_ of food, this becomes the travelling salesman problem
+  # but, since it's not a lot of food, (only 4) I'm hoping this is easily solved.
+  value = cornerHeuristicHelper(state[0], state[1])
+  return value # Default to trivial solution
 
 class AStarCornersAgent(SearchAgent):
   "A SearchAgent for FoodSearchProblem using A* and your foodHeuristic"
@@ -410,6 +447,50 @@ class AStarFoodSearchAgent(SearchAgent):
     self.searchFunction = lambda prob: search.aStarSearch(prob, foodHeuristic)
     self.searchType = FoodSearchProblem
 
+def foodHeuristicHelperTSP(position, food, problem, dsofar=0, bestdistance=-1, depth=5):
+	retVal = dsofar
+	if ((depth > 0) and (len(food) > 0)):
+		sortedfood = sorted(food, key=lambda x: distance(x,position))
+		mybest = bestdistance
+		for f in sortedfood:
+			d = distance(position, f)
+			if ((bestdistance < 0) or ((d+dsofar) < bestdistance)):
+				rest = list([i for idx, i in enumerate(sortedfood) if ((i != position) and (i != f))])
+				td = foodHeuristicHelperTSP(f,rest,problem,dsofar+d,bestdistance,depth-1)
+				if ((bestdistance < 0) or (td < bestdistance)):
+					bestdistance = td
+					mybest = td
+		retVal = mybest
+	return retVal
+
+
+def foodHeuristicHelperSimple(position, food, problem):
+	retVal = len(food)
+	bestdistance = -1
+	besti = None
+	for i in food:
+		d = distance(i, position)
+		if ((bestdistance < 0) or (d < bestdistance)):
+			bestdistance = d
+			besti = i
+	if (besti != None):
+		retVal += bestdistance-1 # we just ate one of the foods.
+	return(retVal)
+
+def foodHeuristicHelper(position, food, problem):
+	retVal = 0
+	bestdistance = -1
+	besti = None
+	for i in food:
+		d = distance(i, position)
+		if ((bestdistance < 0) or (d < bestdistance)):
+			bestdistance = d
+			besti = i
+	if besti != None:
+		retVal = bestdistance
+		retVal += foodHeuristicHelper(besti, list([f for idx, f in enumerate(food) if (f != position)]), problem)
+	return retVal
+
 def foodHeuristic(state, problem):
   """
   Your heuristic for the FoodSearchProblem goes here.
@@ -437,7 +518,8 @@ def foodHeuristic(state, problem):
   """
   position, foodGrid = state
   "*** YOUR CODE HERE ***"
-  return 0
+  value = foodHeuristicHelperTSP(position, foodGrid.asList(), problem)
+  return value
   
 class ClosestDotSearchAgent(SearchAgent):
   "Search for all food using a sequence of searches"
@@ -448,11 +530,11 @@ class ClosestDotSearchAgent(SearchAgent):
       nextPathSegment = self.findPathToClosestDot(currentState) # The missing piece
       self.actions += nextPathSegment
       for action in nextPathSegment: 
-        legal = currentState.getLegalActions()
-        if action not in legal: 
-          t = (str(action), str(currentState))
-          raise Exception, 'findPathToClosestDot returned an illegal move: %s!\n%s' % t
-        currentState = currentState.generateSuccessor(0, action)
+	legal = currentState.getLegalActions()
+	if action not in legal: 
+	  t = (str(action), str(currentState))
+	  raise Exception, 'findPathToClosestDot returned an illegal move: %s!\n%s' % t
+	currentState = currentState.generateSuccessor(0, action)
     self.actionIndex = 0
     print 'Path found with cost %d.' % len(self.actions)
     

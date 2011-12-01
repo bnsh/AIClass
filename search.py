@@ -67,6 +67,50 @@ def tinyMazeSearch(problem):
   w = Directions.WEST
   return  [s,s,w,s,w,w,s,w]
 
+def nullHeuristic(state, problem=None):
+  """
+  A heuristic function estimates the cost from the current state to the nearest
+  goal in the provided SearchProblem.  This heuristic is trivial.
+  """
+  return 0
+
+def genericSearch(problem, frontier,heuristic=nullHeuristic):
+  explored = { }
+# What should go on the stack?
+# I think it should be the path, the lastnode and the total cost
+  explored[problem.getStartState()] = 1
+  frontier.push([ [], problem.getStartState(), 0, heuristic(problem.getStartState(), problem)])
+  done = False
+  while ((not frontier.isEmpty()) and (not done)):
+	q = frontier.pop()
+	done = problem.isGoalState(q[1])
+	if (done != True):
+		curpath = q[0]
+		curstate = q[1]
+		curcost = q[2]
+		curheuristic = heuristic(curstate, problem)
+		# expand all the successors.
+		# [((5, 4), 'South', 1), ((4, 5), 'West', 1)]
+		successors = problem.getSuccessors(q[1])
+		for successor in successors:
+			if ((successor[0] in explored) != True):
+				newpath = curpath[:]
+				newpath.append(successor[1])
+				newheuristic = heuristic(successor[0], problem)
+				if (curheuristic - newheuristic > successor[2]):
+					print "consistency problem", curheuristic, newheuristic, curstate, successor[0]
+					print curstate[0]
+					print str(curstate[1])
+					print successor[0][0]
+					print str(successor[0][1])
+					print
+				newstate = [ newpath, successor[0], curcost + successor[2], newheuristic ]
+				explored[successor[0]] = 1
+				frontier.push(newstate)
+				if (successor[2] != 1):
+					print successor
+  return q[0]
+
 def depthFirstSearch(problem):
   """
   Search the deepest nodes in the search tree first
@@ -82,9 +126,13 @@ def depthFirstSearch(problem):
   print "Start:", problem.getStartState()
   print "Is the start a goal?", problem.isGoalState(problem.getStartState())
   print "Start's successors:", problem.getSuccessors(problem.getStartState())
+  print "problem: ", problem
+  util.raiseNotDefined()
   """
   "*** YOUR CODE HERE ***"
-  util.raiseNotDefined()
+  # So.
+  from util import Stack
+  return genericSearch(problem, Stack())
 
 def breadthFirstSearch(problem):
   """
@@ -92,24 +140,22 @@ def breadthFirstSearch(problem):
   [2nd Edition: p 73, 3rd Edition: p 82]
   """
   "*** YOUR CODE HERE ***"
-  util.raiseNotDefined()
+  from util import Queue
+  return genericSearch(problem, Queue())
       
+def extractor(state):
+	return (state[2] + state[3])
 def uniformCostSearch(problem):
   "Search the node of least total cost first. "
   "*** YOUR CODE HERE ***"
-  util.raiseNotDefined()
-
-def nullHeuristic(state, problem=None):
-  """
-  A heuristic function estimates the cost from the current state to the nearest
-  goal in the provided SearchProblem.  This heuristic is trivial.
-  """
-  return 0
+  from util import PriorityQueueWithFunction
+  return genericSearch(problem, PriorityQueueWithFunction(extractor))
 
 def aStarSearch(problem, heuristic=nullHeuristic):
   "Search the node that has the lowest combined cost and heuristic first."
   "*** YOUR CODE HERE ***"
-  util.raiseNotDefined()
+  from util import PriorityQueueWithFunction
+  return genericSearch(problem, PriorityQueueWithFunction(extractor), heuristic)
     
   
 # Abbreviations
