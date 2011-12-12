@@ -36,7 +36,7 @@ class QLearningAgent(ReinforcementAgent):
   def __init__(self, **args):
     "You can initialize Q-values here..."
     ReinforcementAgent.__init__(self, **args)
-
+    self.qvalues = util.Counter()
     "*** YOUR CODE HERE ***"
 
   def getQValue(self, state, action):
@@ -46,7 +46,23 @@ class QLearningAgent(ReinforcementAgent):
       a state or (state,action) tuple
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    qvalue = self.qvalues[(state, action)]
+    if (qvalue == None):
+        qvalue = 0.0
+    return qvalue
+
+  def getBoth(self, state):
+    legalActions = self.getLegalActions(state)
+    bestvalue = None
+    bestaction = None
+    for a in legalActions:
+        v = self.getQValue(state, a)
+        if ((bestvalue == None) or (v > bestvalue)):
+            bestvalue = v
+            bestaction = a
+    if bestvalue == None:
+        bestvalue = 0.0
+    return (bestaction, bestvalue)
 
 
   def getValue(self, state):
@@ -57,7 +73,9 @@ class QLearningAgent(ReinforcementAgent):
       terminal state, you should return a value of 0.0.
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    (bestaction, bestvalue) = self.getBoth(state)
+    return bestvalue
+    # util.raiseNotDefined()
 
   def getPolicy(self, state):
     """
@@ -66,7 +84,9 @@ class QLearningAgent(ReinforcementAgent):
       you should return None.
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    (bestaction, bestvalue) = self.getBoth(state)
+    return bestaction
+    # util.raiseNotDefined()
 
   def getAction(self, state):
     """
@@ -83,7 +103,12 @@ class QLearningAgent(ReinforcementAgent):
     legalActions = self.getLegalActions(state)
     action = None
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    explore = util.flipCoin(self.epsilon)
+    if (explore):
+        action = random.choice(legalActions)
+    else:
+        action = self.getPolicy(state)
+    # util.raiseNotDefined()
 
     return action
 
@@ -97,7 +122,17 @@ class QLearningAgent(ReinforcementAgent):
       it will be called on your behalf
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    currqvalue = self.getQValue(state, action)
+    bestnextqvalue = None
+    bestnextaction = None
+    for nextaction in self.getLegalActions(nextState):
+        q = self.getQValue(nextState, nextaction)
+        if ((bestnextqvalue == None) or (bestnextqvalue < q)):
+            bestnexqvalue = q
+            bestnextaction = nextaction
+    updateqvalue = currqvalue + self.alpha * (reward + self.discount * self.getQValue(nextState, bestnextaction) - currqvalue)
+    self.qvalues[(state, action)] = updateqvalue
+    # util.raiseNotDefined()
 
 class PacmanQAgent(QLearningAgent):
   "Exactly the same as QLearningAgent, but with different default parameters"
@@ -145,6 +180,7 @@ class ApproximateQAgent(PacmanQAgent):
 
     # You might want to initialize weights here.
     "*** YOUR CODE HERE ***"
+    self.weights = util.Counter()
 
   def getQValue(self, state, action):
     """
@@ -152,14 +188,28 @@ class ApproximateQAgent(PacmanQAgent):
       where * is the dotProduct operator
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    q = 0.0
+    features = self.featExtractor.getFeatures(state, action)
+    for (feature, value) in features.items():
+        if (self.weights[feature] == None):
+            self.weights[feature] = 0.0
+        q += self.weights[feature] * value
+    return q
+    # util.raiseNotDefined()
 
   def update(self, state, action, nextState, reward):
     """
        Should update your weights based on transition
     """
     "*** YOUR CODE HERE ***"
-    util.raiseNotDefined()
+    correction = reward + self.discount * self.getValue(nextState) - self.getQValue(state, action)
+    features = self.featExtractor.getFeatures(state, action)
+    for (feature, value) in features.items():
+        if (self.weights[feature] == None):
+            self.weights[feature] = 0.0
+        self.weights[feature] += self.alpha * correction * value
+
+    # util.raiseNotDefined()
 
   def final(self, state):
     "Called at the end of each game."
